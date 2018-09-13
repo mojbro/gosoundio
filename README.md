@@ -1,9 +1,12 @@
 # gosoundio
-Go port of libsoundio
+Go wrapper for libsoundio, a cross-platform library for real-time audio input 
+and output.
 
 ## Building on macOS
 
-You need to have [libsoundio](http://libsound.io/) installed. You can install it with Homebrew. (If you don't have Homebrew, [install it first](https://brew.sh/).)
+You need to have [libsoundio](http://libsound.io/) installed. You can install 
+it with Homebrew. If you don't have Homebrew, [install it first](
+    https://brew.sh/).
 
 ```
 $ brew install libsoundio
