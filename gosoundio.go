@@ -1,3 +1,5 @@
+// Package gosoundio is a Go wrapper for libsoundio, cross-platform library
+// for real-time audio input and output.
 package gosoundio
 
 // #cgo LDFLAGS: -lsoundio
@@ -8,7 +10,7 @@ import (
 	"unsafe"
 )
 
-// Error represents a libsoundio error
+// Error represents a libsoundio error.
 type Error int
 
 // SoundIo Errors.
@@ -36,14 +38,6 @@ func (e Error) Error() string {
 
 type SoundIO struct {
 	context unsafe.Pointer
-}
-
-type Device struct {
-	ptr unsafe.Pointer
-}
-
-type OutStream struct {
-	ptr unsafe.Pointer
 }
 
 func CreateSoundIO() (*SoundIO, error) {
@@ -91,6 +85,10 @@ func (s SoundIO) GetOutputDevice(index int) (*Device, error) {
 	return &Device{ptr: unsafe.Pointer(ptr)}, nil
 }
 
+type Device struct {
+	ptr unsafe.Pointer
+}
+
 func (d Device) cPtr() *_Ctype_struct_SoundIoDevice {
 	return (*_Ctype_struct_SoundIoDevice)(d.ptr)
 }
@@ -99,14 +97,22 @@ func (d Device) Unref() {
 	C.soundio_device_unref(d.cPtr())
 }
 
+// Id returns the the device ID, a string that uniquely identifies this device.
 func (d Device) Id() string {
 	return C.GoString((*d.cPtr()).id)
 }
 
+// Name returns a user-friendly name that describes this device.
 func (d Device) Name() string {
 	return C.GoString((*d.cPtr()).name)
 }
 
+// IsRaw returns true if you are directly opening the hardware device without
+// going through a proxy such as dmix, PulseAudio, or JACK.
+//
+// When you open a raw device, other applications on the computer are not able
+// to simultaneously access the device. Raw devices do not perform automatic
+// resampling and thus tend to have fewer formats available.
 func (d Device) IsRaw() bool {
 	return bool((*d.cPtr()).is_raw)
 }
@@ -117,6 +123,10 @@ func (d Device) CreateOutstream() (*OutStream, error) {
 		return nil, ErrorNoMem
 	}
 	return &OutStream{ptr: unsafe.Pointer(outStream)}, nil
+}
+
+type OutStream struct {
+	ptr unsafe.Pointer
 }
 
 func (o OutStream) cPtr() *_Ctype_struct_SoundIoOutStream {
