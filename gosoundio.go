@@ -2,12 +2,16 @@
 // for real-time audio input and output.
 package gosoundio
 
-// #cgo LDFLAGS: -lsoundio
-// #include "gosoundio.h"
+/*
+#cgo LDFLAGS: -lsoundio
+#include "gosoundio.h"
+*/
 import "C"
 import (
 	"errors"
 	"unsafe"
+
+	pointer "github.com/mattn/go-pointer"
 )
 
 // Error represents a libsoundio error.
@@ -48,8 +52,8 @@ func CreateSoundIO() (*SoundIO, error) {
 	return &SoundIO{context: unsafe.Pointer(C.soundio_create())}, nil
 }
 
-func (s SoundIO) cPtr() *_Ctype_struct_SoundIo {
-	return (*_Ctype_struct_SoundIo)(s.context)
+func (s SoundIO) cPtr() *C.struct_SoundIo {
+	return (*C.struct_SoundIo)(s.context)
 }
 
 func (s *SoundIO) Destroy() {
@@ -89,10 +93,12 @@ type Device struct {
 	ptr unsafe.Pointer
 }
 
-func (d Device) cPtr() *_Ctype_struct_SoundIoDevice {
-	return (*_Ctype_struct_SoundIoDevice)(d.ptr)
+func (d Device) cPtr() *C.struct_SoundIoDevice {
+	return (*C.struct_SoundIoDevice)(d.ptr)
 }
 
+// Unref releases the device reference. Call this when you are done using the
+// device.
 func (d Device) Unref() {
 	C.soundio_device_unref(d.cPtr())
 }
@@ -117,22 +123,59 @@ func (d Device) IsRaw() bool {
 	return bool((*d.cPtr()).is_raw)
 }
 
-func (d Device) CreateOutstream() (*OutStream, error) {
-	outStream := C.soundio_outstream_create(d.cPtr())
-	if outStream == nil {
-		return nil, ErrorNoMem
-	}
-	return &OutStream{ptr: unsafe.Pointer(outStream)}, nil
-}
-
 type OutStream struct {
 	ptr unsafe.Pointer
 }
 
-func (o OutStream) cPtr() *_Ctype_struct_SoundIoOutStream {
-	return (*_Ctype_struct_SoundIoOutStream)(o.ptr)
+type WriteCallback struct {
+	Func    func(*OutStream, int, int)
+	oStream *OutStream
+}
+
+//export writeCallbackProxy
+func writeCallbackProxy(outstream *C.struct_SoundIoOutStream, frameCountMin C.int, frameCountMax C.int) {
+	wcb := pointer.Restore(outstream.userdata).(*WriteCallback)
+	wcb.Func(wcb.oStream, int(frameCountMin), int(frameCountMax))
+}
+
+func NewOutStream(d Device, f func(*OutStream, int, int)) (*OutStream, error) {
+	cOutStream := C.create_outstream(d.cPtr())
+	if cOutStream == nil {
+		return nil, ErrorNoMem
+	}
+	outStream := &OutStream{ptr: unsafe.Pointer(cOutStream)}
+	cOutStream.userdata = pointer.Save(&WriteCallback{
+		Func:    f,
+		oStream: outStream,
+	})
+	return outStream, nil
+}
+
+func (o OutStream) cPtr() *C.struct_SoundIoOutStream {
+	return (*C.struct_SoundIoOutStream)(o.ptr)
 }
 
 func (o *OutStream) Destroy() {
 	C.soundio_outstream_destroy(o.cPtr())
+}
+
+func (o *OutStream) Open() error {
+	r := C.soundio_outstream_open(o.cPtr())
+	if r != 0 {
+		return Error(r)
+	}
+	return nil
+}
+
+func (o *OutStream) ClearBuffer() error {
+	r := C.soundio_outstream_clear_buffer(o.cPtr())
+	if r != 0 {
+		return Error(r)
+	}
+	return nil
+}
+
+// Temporary function that starts out stream and waits for events forever
+func (o *OutStream) Run() {
+	C.run(o.cPtr())
 }
